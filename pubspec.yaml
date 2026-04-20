@@ -1,0 +1,47 @@
+name: template
+description: Flutter стартовый шаблон — Clean Architecture, BLoC, Drift, GoRouter.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_bloc: ^8.1.6
+  bloc: ^8.1.4
+  equatable: ^2.0.5
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Local database (Drift / SQLite)
+  drift: ^2.20.3
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # HTTP client
+  dio: ^5.7.0
+
+  # Charts
+  fl_chart: ^0.69.0
+
+  # Session storage
+  shared_preferences: ^2.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  drift_dev: ^2.20.3
+  build_runner: ^2.4.12
+  mocktail: ^1.0.4
+  bloc_test: ^9.1.7
+
+flutter:
+  uses-material-design: true
