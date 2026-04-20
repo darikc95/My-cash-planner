@@ -25,7 +25,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Логирование всех BLoC событий и переходов
-  Bloc.observer = MyAppBlocObserver();
+  Bloc.observer = _AppBlocObserver();
 
   // Инициализация синглтона базы данных
   final db = AppDatabase.instance;
@@ -72,21 +72,21 @@ Future<void> main() async {
         BlocProvider.value(value: authBloc),
         BlocProvider.value(value: itemBloc),
       ],
-      child: MyApp(authBloc: authBloc),
+      child: _App(authBloc: authBloc),
     ),
   );
 }
 
-class MyApp extends StatefulWidget {
-  const MyApp({required this.authBloc});
+class _App extends StatefulWidget {
+  const _App({required this.authBloc});
 
   final AuthBloc authBloc;
 
   @override
-  State<MyApp> createState() => MyAppState();
+  State<_App> createState() => _AppState();
 }
 
-class MyAppState extends State<MyApp> {
+class _AppState extends State<_App> {
   late final _router = createRouter(widget.authBloc);
 
   @override
@@ -101,7 +101,7 @@ class MyAppState extends State<MyApp> {
 }
 
 // BLoC-наблюдатель: логирует все события, переходы и ошибки
-class MyAppBlocObserver extends BlocObserver {
+class _AppBlocObserver extends BlocObserver {
   @override
   void onEvent(Bloc<dynamic, dynamic> bloc, Object? event) {
     super.onEvent(bloc, event);
