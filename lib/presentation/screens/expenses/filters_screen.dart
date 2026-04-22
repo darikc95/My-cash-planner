@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/expense_ui_data.dart';
-import '../widgets/expense_ui_widgets.dart';
+import '../../widgets/expense_ui_data.dart';
+import '../../widgets/expense_ui_widgets.dart';
 
 class FiltersScreen extends StatelessWidget {
   const FiltersScreen({super.key});

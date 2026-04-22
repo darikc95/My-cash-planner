@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/expense_ui_data.dart';
-import '../widgets/expense_ui_widgets.dart';
-import 'expense_ui_routes.dart';
+import '../../widgets/expense_ui_data.dart';
+import '../../widgets/expense_ui_widgets.dart';
+import '../app/expense_ui_routes.dart';
 
 class StatisticsScreen extends StatelessWidget {
   const StatisticsScreen({super.key});
@@ -15,9 +15,9 @@ class StatisticsScreen extends StatelessWidget {
       case 1:
         context.go(ExpenseUiRoutes.statistics);
       case 2:
-        showFeatureStub(context, 'Раздел категорий');
+        context.go(ExpenseUiRoutes.categories);
       case 3:
-        showFeatureStub(context, 'Профиль пользователя');
+        context.go(ExpenseUiRoutes.profile);
     }
   }
 

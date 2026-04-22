@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/expense_ui_widgets.dart';
-import 'expense_ui_routes.dart';
+import '../../widgets/expense_ui_widgets.dart';
+import '../app/expense_ui_routes.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

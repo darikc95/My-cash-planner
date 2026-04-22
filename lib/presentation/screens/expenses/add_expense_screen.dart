@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/expense_ui_widgets.dart';
+import '../../widgets/expense_ui_widgets.dart';
 
 class AddExpenseScreen extends StatelessWidget {
   const AddExpenseScreen({super.key});

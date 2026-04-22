@@ -1,11 +1,13 @@
 import 'package:go_router/go_router.dart';
 
-import 'add_expense_screen.dart';
-import 'filters_screen.dart';
-import 'home_screen.dart';
-import 'login_screen.dart';
-import 'register_screen.dart';
-import 'statistics_screen.dart';
+import '../auth/login_screen.dart';
+import '../auth/register_screen.dart';
+import '../expenses/add_expense_screen.dart';
+import '../expenses/filters_screen.dart';
+import '../main/categories_screen.dart';
+import '../main/home_screen.dart';
+import '../main/profile_screen.dart';
+import '../main/statistics_screen.dart';
 
 abstract final class ExpenseUiRoutes {
   static const login = '/';
@@ -13,6 +15,8 @@ abstract final class ExpenseUiRoutes {
   static const register = '/register';
   static const addExpense = '/add-expense';
   static const statistics = '/statistics';
+  static const categories = '/categories';
+  static const profile = '/profile';
   static const filters = '/filters';
 }
 
@@ -38,6 +42,14 @@ final GoRouter expenseUiRouter = GoRouter(
     GoRoute(
       path: ExpenseUiRoutes.statistics,
       builder: (_, __) => const StatisticsScreen(),
+    ),
+    GoRoute(
+      path: ExpenseUiRoutes.categories,
+      builder: (_, __) => const CategoriesScreen(),
+    ),
+    GoRoute(
+      path: ExpenseUiRoutes.profile,
+      builder: (_, __) => const ProfileScreen(),
     ),
     GoRoute(
       path: ExpenseUiRoutes.filters,
