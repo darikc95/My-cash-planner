@@ -1,5 +1,7 @@
 import 'package:go_router/go_router.dart';
 
+import '../../../data/datasources/hive_storage_service.dart';
+import '../../../data/datasources/local_auth_service.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
 import '../expenses/add_expense_screen.dart';
@@ -22,6 +24,22 @@ abstract final class ExpenseUiRoutes {
 
 final GoRouter expenseUiRouter = GoRouter(
   initialLocation: ExpenseUiRoutes.login,
+  redirect: (_, state) {
+    const authService = LocalAuthService(HiveStorageService());
+    final isAuthenticated = authService.isAuthenticated;
+    final isAuthPage = state.matchedLocation == ExpenseUiRoutes.login ||
+        state.matchedLocation == ExpenseUiRoutes.register;
+
+    if (!isAuthenticated && !isAuthPage) {
+      return ExpenseUiRoutes.login;
+    }
+
+    if (isAuthenticated && isAuthPage) {
+      return ExpenseUiRoutes.home;
+    }
+
+    return null;
+  },
   routes: [
     GoRoute(
       path: ExpenseUiRoutes.login,
