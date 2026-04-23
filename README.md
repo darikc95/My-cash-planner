@@ -30,7 +30,17 @@ dart run build_runner build --delete-conflicting-outputs
 
 # 3. Запустить приложение
 flutter run
+
+# 4. Для Yahoo Finance передать ключ RapidAPI
+flutter run --dart-define=RAPIDAPI_KEY=YOUR_RAPIDAPI_KEY
 ```
+
+### Чтобы не вводить ключ каждый раз
+
+1. Один раз откройте и заполните файл [ env/rapidapi.json ](env/rapidapi.json) реальным ключом в поле RAPIDAPI_KEY.
+2. Запускайте конфигурацию VS Code [ .vscode/launch.json ](.vscode/launch.json) с именем Flutter (RapidAPI).
+
+Если нужен шаблон, используйте [ env/rapidapi.example.json ](env/rapidapi.example.json).
 
 > **Важно:** без шага 2 приложение не скомпилируется — `app_database.g.dart` должен быть создан build_runner.
 

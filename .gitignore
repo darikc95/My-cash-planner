@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local API keys (keep only *.example.json in repo)
+.env/rapidapi.json
+env/rapidapi.json
+
 # Symbolication related
 app.*.symbols
 
