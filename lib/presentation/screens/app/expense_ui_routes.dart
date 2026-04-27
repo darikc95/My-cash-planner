@@ -71,7 +71,19 @@ final GoRouter expenseUiRouter = GoRouter(
     ),
     GoRoute(
       path: ExpenseUiRoutes.filters,
-      builder: (_, __) => const FiltersScreen(),
+      builder: (_, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+
+        return FiltersScreen(
+          initialSelectedCategories: extra == null
+              ? null
+              : List<String>.from(
+                  (extra['categories'] as List<dynamic>? ?? const []),
+                ),
+          initialStartDate: extra?['startDate'] as DateTime?,
+          initialEndDate: extra?['endDate'] as DateTime?,
+        );
+      },
     ),
   ],
 );

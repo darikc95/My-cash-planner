@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../data/datasources/hive_storage_service.dart';
+import '../../../data/datasources/local_auth_service.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../widgets/expense_ui_widgets.dart';
 import '../app/expense_ui_routes.dart';
@@ -40,14 +42,103 @@ class _LoginScreenState extends State<LoginScreen> {
     context.push(ExpenseUiRoutes.register);
   }
 
-  void _handleForgotPassword() {
+  Future<void> _handleForgotPassword() async {
     FocusScope.of(context).unfocus();
-    showFeatureStub(context, 'Восстановление пароля');
+
+    final emailController = TextEditingController(text: _emailController.text);
+    final passwordController = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Сброс пароля'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(labelText: 'Эл. почта'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                decoration: const InputDecoration(labelText: 'Новый пароль'),
+                obscureText: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop({
+                  'email': emailController.text,
+                  'password': passwordController.text,
+                });
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
+    );
+
+    emailController.dispose();
+    passwordController.dispose();
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    const authService = LocalAuthService(HiveStorageService());
+    final resetResult = await authService.resetPassword(
+      email: result['email'] ?? '',
+      newPassword: result['password'] ?? '',
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            resetResult.success
+                ? 'Пароль обновлён. Теперь можно войти.'
+                : (resetResult.message ?? 'Не удалось сбросить пароль.'),
+          ),
+        ),
+      );
   }
 
-  void _handleGoogleLogin() {
+  Future<void> _handleGoogleLogin() async {
     FocusScope.of(context).unfocus();
-    showFeatureStub(context, 'Вход через Google');
+
+    const authService = LocalAuthService(HiveStorageService());
+    final result = await authService.loginWithDemoAccount();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!result.success) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? 'Не удалось выполнить demo-вход.'),
+          ),
+        );
+      return;
+    }
+
+    context.read<AuthBloc>().add(const AuthSessionRequested());
+    context.go(ExpenseUiRoutes.home);
   }
 
   @override
@@ -194,7 +285,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                          label: const Text('Продолжить с Google'),
+                          label: const Text('Войти в demo-аккаунт'),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(56),
                             backgroundColor: Colors.white,
