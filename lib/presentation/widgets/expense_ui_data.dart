@@ -97,3 +97,9 @@ const filterItems = <FilterItem>[
   FilterItem('Жилье', Icons.home_rounded, Color(0xFFFF5E94), false),
   FilterItem('Прочее', Icons.more_horiz_rounded, Color(0xFFB7BBC8), false),
 ];
+
+const filterIncomeItems = <FilterItem>[
+  FilterItem('Заработная плата', Icons.work_rounded, Color(0xFF1DB954), true),
+  FilterItem('Прибыль', Icons.trending_up_rounded, Color(0xFF4A86F7), true),
+  FilterItem('Прочие', Icons.more_horiz_rounded, Color(0xFFB7BBC8), true),
+];

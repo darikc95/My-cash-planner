@@ -25,6 +25,19 @@ class YahooFinanceApiService {
     '.env/rapidapi.json',
   ];
 
+  /// Для каждого символа XXXKZT=X определяет пару через USD.
+  /// multiply=true → XXXKZT = helper × USDKZT (напр. EURUSD × USDKZT)
+  /// multiply=false → XXXKZT = USDKZT / helper (напр. USDKZT / USDRUB)
+  static const _crossRateHelpers = <String, ({String helper, bool multiply})>{
+    'EURKZT=X': (helper: 'EURUSD=X', multiply: true),
+    'GBPKZT=X': (helper: 'GBPUSD=X', multiply: true),
+    'CHFKZT=X': (helper: 'CHFUSD=X', multiply: true),
+    'RUBKZT=X': (helper: 'USDRUB=X', multiply: false),
+    'CNYKZT=X': (helper: 'USDCNY=X', multiply: false),
+    'JPYKZT=X': (helper: 'USDJPY=X', multiply: false),
+    'AEDKZT=X': (helper: 'USDAED=X', multiply: false),
+  };
+
   final Dio _dio;
   Future<String>? _cachedApiKeyFuture;
 
@@ -70,6 +83,8 @@ class YahooFinanceApiService {
     }
 
     final errors = <String>[];
+    // Собираем данные из обоих endpoints, объединяя результаты
+    var resultMap = <String, FinanceQuote>{};
 
     try {
       final response = await _requestEnclout(
@@ -77,31 +92,127 @@ class YahooFinanceApiService {
         rapidApiKey: rapidApiKey,
       );
       final quotes = FinanceQuoteParser.parse(response.data);
-      if (quotes.isNotEmpty) {
-        return quotes;
+      for (final q in quotes) {
+        resultMap[q.symbol.toUpperCase()] = q;
       }
-      errors.add('enclout: пустой ответ');
+      if (quotes.isEmpty) errors.add('enclout: пустой ответ');
     } on DioException catch (error) {
       errors.add('enclout: ${_formatDioError(error)}');
     }
 
-    try {
-      final response = await _requestApidojo(
-        symbols: cleanedSymbols,
-        rapidApiKey: rapidApiKey,
-      );
-      final quotes = FinanceQuoteParser.parse(response.data);
-      if (quotes.isNotEmpty) {
-        return quotes;
+    // Запрашиваем apidojo для символов, которых не хватает
+    final missingAfterEnclout = cleanedSymbols
+        .where((s) => !resultMap.containsKey(s))
+        .toList(growable: false);
+
+    if (missingAfterEnclout.isNotEmpty || resultMap.isEmpty) {
+      final toFetch = resultMap.isEmpty ? cleanedSymbols : missingAfterEnclout;
+      try {
+        final response = await _requestApidojo(
+          symbols: toFetch,
+          rapidApiKey: rapidApiKey,
+        );
+        final quotes = FinanceQuoteParser.parse(response.data);
+        for (final q in quotes) {
+          resultMap[q.symbol.toUpperCase()] = q;
+        }
+        if (quotes.isEmpty) errors.add('apidojo: пустой ответ');
+      } on DioException catch (error) {
+        errors.add('apidojo: ${_formatDioError(error)}');
       }
-      errors.add('apidojo: пустой ответ');
-    } on DioException catch (error) {
-      errors.add('apidojo: ${_formatDioError(error)}');
     }
 
-    throw Exception(
-      'Не удалось получить котировки из всех Yahoo endpoints. ${errors.join(' | ')}',
+    if (resultMap.isEmpty) {
+      throw Exception(
+        'Не удалось получить котировки из всех Yahoo endpoints. ${errors.join(' | ')}',
+      );
+    }
+
+    // Вычисляем кросс-курсы для символов, которых всё ещё нет
+    final crossRates = await _computeCrossRates(
+      requestedSymbols: cleanedSymbols,
+      available: resultMap,
+      rapidApiKey: rapidApiKey,
     );
+    for (final q in crossRates) {
+      resultMap.putIfAbsent(q.symbol.toUpperCase(), () => q);
+    }
+
+    return resultMap.values.toList(growable: false);
+  }
+
+  /// Вычисляет кросс-курсы через USD для символов, отсутствующих в [available].
+  ///
+  /// Формула:
+  /// - XXXUSD=X (multiply=true):  XXXKZT = helper_price × USDKZT
+  /// - USDXXX=X (multiply=false): XXXKZT = USDKZT / helper_price
+  Future<List<FinanceQuote>> _computeCrossRates({
+    required List<String> requestedSymbols,
+    required Map<String, FinanceQuote> available,
+    required String rapidApiKey,
+  }) async {
+    final missing = requestedSymbols
+        .map((s) => s.toUpperCase())
+        .where(
+          (s) => !available.containsKey(s) && _crossRateHelpers.containsKey(s),
+        )
+        .toList(growable: false);
+
+    if (missing.isEmpty) return const [];
+
+    // Собираем вспомогательные пары для запроса
+    final helpersNeeded = <String>{};
+    for (final sym in missing) {
+      helpersNeeded.add(_crossRateHelpers[sym]!.helper);
+    }
+    // USDKZT=X нужен как база для всех вычислений
+    helpersNeeded.add('USDKZT=X');
+
+    final toFetch =
+        helpersNeeded.where((s) => !available.containsKey(s)).toList();
+
+    final helperMap = Map<String, FinanceQuote>.from(available);
+
+    if (toFetch.isNotEmpty) {
+      try {
+        final response = await _requestApidojo(
+          symbols: toFetch,
+          rapidApiKey: rapidApiKey,
+        );
+        final fetched = FinanceQuoteParser.parse(response.data);
+        for (final q in fetched) {
+          helperMap[q.symbol.toUpperCase()] = q;
+        }
+      } catch (_) {
+        // Если вспомогательные пары не загрузились — пропускаем кросс-расчёт
+      }
+    }
+
+    final usdKzt = helperMap['USDKZT=X'];
+    if (usdKzt == null || usdKzt.price <= 0) return const [];
+
+    final crossRates = <FinanceQuote>[];
+    for (final sym in missing) {
+      final config = _crossRateHelpers[sym]!;
+      final helper = helperMap[config.helper];
+      if (helper == null || helper.price <= 0) continue;
+
+      final crossPrice = config.multiply
+          ? helper.price * usdKzt.price
+          : usdKzt.price / helper.price;
+
+      crossRates.add(
+        FinanceQuote(
+          symbol: sym,
+          name: helper.name,
+          price: crossPrice,
+          change: 0,
+          changePercent: 0,
+        ),
+      );
+    }
+
+    return crossRates;
   }
 
   Future<Response<dynamic>> _requestEnclout({

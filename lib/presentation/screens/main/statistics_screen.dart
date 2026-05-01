@@ -25,6 +25,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   List<Expense> _expenses = const [];
   bool _isLoading = true;
   DateTimeRange? _selectedRange;
+  int _selectedTab = 0;
 
   @override
   void initState() {
@@ -112,18 +113,49 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     }).toList(growable: false);
   }
 
-  double get _totalAmount => _filteredExpenses.fold<double>(
-        0,
-        (sum, expense) => sum + expense.amount,
-      );
+  double get _totalAmount => _filteredExpenses
+      .where((e) => !e.isIncome)
+      .fold<double>(0, (sum, e) => sum + e.amount);
+
+  double get _totalIncome => _filteredExpenses
+      .where((e) => e.isIncome)
+      .fold<double>(0, (sum, e) => sum + e.amount);
+
+  List<Expense> get _onlyExpenses =>
+      _filteredExpenses.where((e) => !e.isIncome).toList(growable: false);
+
+  Color _getCategoryColor(String category) {
+    // First, check user-customized categories in Hive (including modified default ones)
+    final userId = _authService.getCurrentUser()?.id;
+    if (userId != null) {
+      final cats = _storageService.getUserCategories(userId);
+      final cat = cats.cast<Map<String, dynamic>?>().firstWhere(
+            (c) => c?['name'] == category,
+            orElse: () => null,
+          );
+      if (cat != null) {
+        return Color(cat['colorValue'] as int);
+      }
+    }
+    // Then, check default categories
+    final match = filterItems.cast<FilterItem?>().firstWhere(
+          (item) => item?.label == category,
+          orElse: () => null,
+        );
+    if (match != null) {
+      return match.color;
+    }
+    return const Color(0xFFB7BBC8);
+  }
 
   List<ChartItem> get _chartEntries {
-    if (_filteredExpenses.isEmpty) {
+    final expensesOnly = _onlyExpenses;
+    if (expensesOnly.isEmpty) {
       return const [];
     }
 
     final totalsByCategory = <String, double>{};
-    for (final expense in _filteredExpenses) {
+    for (final expense in expensesOnly) {
       totalsByCategory.update(
         expense.category,
         (value) => value + expense.amount,
@@ -134,23 +166,71 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final entries = totalsByCategory.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
+    final total = _totalAmount;
+
     return entries.map((entry) {
-      final filterItem = filterItems.cast<FilterItem?>().firstWhere(
-            (item) => item?.label == entry.key,
-            orElse: () => null,
-          );
       final percent = math.max(
         1,
-        ((entry.value / _totalAmount) * 100).round(),
+        ((entry.value / (total == 0 ? 1 : total)) * 100).round(),
       );
 
       return ChartItem(
         entry.key,
         percent,
         '${entry.value.toStringAsFixed(0)} ₸',
-        filterItem?.color ?? const Color(0xFFB7BBC8),
+        _getCategoryColor(entry.key),
       );
     }).toList(growable: false);
+  }
+
+  /// Группирует расходы по месяцам для вкладки Тренды
+  List<_MonthlyData> get _monthlyExpenses {
+    final expensesOnly = _onlyExpenses;
+    final incomeOnly = _filteredExpenses.where((e) => e.isIncome).toList();
+
+    final expMap = <String, double>{};
+    final incMap = <String, double>{};
+
+    void process(List<Expense> items, Map<String, double> target) {
+      for (final e in items) {
+        final key = '${e.date.year}-${e.date.month.toString().padLeft(2, '0')}';
+        target.update(key, (v) => v + e.amount, ifAbsent: () => e.amount);
+      }
+    }
+
+    process(expensesOnly, expMap);
+    process(incomeOnly, incMap);
+
+    final allKeys = <String>{...expMap.keys, ...incMap.keys}.toList()..sort();
+
+    return allKeys.map((key) {
+      final parts = key.split('-');
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      return _MonthlyData(
+        label: _monthLabel(month, year),
+        expenses: expMap[key] ?? 0,
+        income: incMap[key] ?? 0,
+      );
+    }).toList();
+  }
+
+  static String _monthLabel(int month, int year) {
+    const names = [
+      'Янв',
+      'Фев',
+      'Мар',
+      'Апр',
+      'Май',
+      'Июн',
+      'Июл',
+      'Авг',
+      'Сен',
+      'Окт',
+      'Ноя',
+      'Дек',
+    ];
+    return '${names[month - 1]} $year';
   }
 
   String get _periodLabel {
@@ -164,54 +244,68 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Widget _buildSummaryCard(BuildContext context) {
-    final average = _filteredExpenses.isEmpty
-        ? 0.0
-        : _totalAmount / _filteredExpenses.length;
+    final expCount = _onlyExpenses.length;
+    final average = expCount == 0 ? 0.0 : _totalAmount / expCount;
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Потрачено всего',
-                      style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_totalAmount.toStringAsFixed(0)} ₸',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontSize: 34,
-                        ),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Расходы',
+                          style: Theme.of(context).textTheme.bodyMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_totalAmount.toStringAsFixed(0)} ₸',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(fontSize: 30),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '$_periodLabel · ${_filteredExpenses.length} операций',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Доходы',
+                          style: Theme.of(context).textTheme.bodyMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_totalIncome.toStringAsFixed(0)} ₸',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
+                              fontSize: 30,
+                              color: const Color(0xFF1DB954),
+                            ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Средний расход: ${average.toStringAsFixed(0)} ₸',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Container(
-              height: 48,
-              width: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF0EAFE),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.show_chart_rounded,
-                color: Color(0xFF8D6AF2),
-              ),
+            const SizedBox(height: 10),
+            Text(
+              '$_periodLabel · $expCount операций',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Средний расход: ${average.toStringAsFixed(0)} ₸',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -294,6 +388,266 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
+  Widget _buildCategoriesTab(BuildContext context) {
+    final entries = _chartEntries;
+    if (entries.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Text(
+            'Нет расходов за выбранный период.',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ),
+      );
+    }
+
+    final maxAmount = entries
+        .map((e) =>
+            double.tryParse(
+              e.amount.replaceAll(' ₸', '').replaceAll(' ', ''),
+            ) ??
+            0)
+        .fold(0.0, math.max);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'По категориям',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 14),
+            ...entries.map((entry) {
+              final amt = double.tryParse(
+                    entry.amount.replaceAll(' ₸', '').replaceAll(' ', ''),
+                  ) ??
+                  0;
+              final fraction = maxAmount == 0 ? 0.0 : amt / maxAmount;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: entry.color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            entry.label,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Text(
+                          entry.amount,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${entry.percent}%',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: entry.color),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: fraction,
+                        minHeight: 8,
+                        backgroundColor: entry.color.withValues(alpha: 0.15),
+                        valueColor: AlwaysStoppedAnimation(entry.color),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrendsTab(BuildContext context) {
+    final monthly = _monthlyExpenses;
+
+    if (monthly.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Text(
+            'Нет данных для построения трендов.',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ),
+      );
+    }
+
+    final maxVal = monthly.fold<double>(
+      0,
+      (m, d) => math.max(m, math.max(d.expenses, d.income)),
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Тренды по месяцам',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Row(
+              children: [
+                _LegendDot(color: Color(0xFFE05454), label: 'Расходы'),
+                SizedBox(width: 16),
+                _LegendDot(color: Color(0xFF1DB954), label: 'Доходы'),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 220,
+              child: LineChart(
+                LineChartData(
+                  minX: 0,
+                  maxX: (monthly.length - 1).toDouble(),
+                  minY: 0,
+                  maxY: maxVal * 1.1,
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 52,
+                        getTitlesWidget: (value, meta) {
+                          if (value == 0) return const SizedBox.shrink();
+                          return Text(
+                            '${(value / 1000).toStringAsFixed(0)}к',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF6F7486),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        getTitlesWidget: (value, meta) {
+                          final idx = value.toInt();
+                          if (idx < 0 || idx >= monthly.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              monthly[idx].label,
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: Color(0xFF6F7486),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  gridData: const FlGridData(show: true),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: List.generate(
+                        monthly.length,
+                        (i) => FlSpot(i.toDouble(), monthly[i].expenses),
+                      ),
+                      isCurved: true,
+                      color: const Color(0xFFE05454),
+                      barWidth: 2.5,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: const Color(0xFFE05454).withValues(alpha: 0.12),
+                      ),
+                    ),
+                    LineChartBarData(
+                      spots: List.generate(
+                        monthly.length,
+                        (i) => FlSpot(i.toDouble(), monthly[i].income),
+                      ),
+                      isCurved: true,
+                      color: const Color(0xFF1DB954),
+                      barWidth: 2.5,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: const Color(0xFF1DB954).withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...monthly.map((m) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        m.label,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    Text(
+                      '−${m.expenses.toStringAsFixed(0)} ₸',
+                      style: const TextStyle(
+                        color: Color(0xFFE05454),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      '+${m.income.toStringAsFixed(0)} ₸',
+                      style: const TextStyle(
+                        color: Color(0xFF1DB954),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -327,23 +681,67 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                   ],
                 ),
                 const SizedBox(height: 18),
-                const StatsTabs(),
+                StatsTabs(
+                  selectedIndex: _selectedTab,
+                  onTap: (i) => setState(() => _selectedTab = i),
+                ),
                 const SizedBox(height: 18),
                 if (_isLoading)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
                     child: Center(child: CircularProgressIndicator()),
                   )
-                else ...[
+                else if (_selectedTab == 0) ...[
                   _buildSummaryCard(context),
                   const SizedBox(height: 18),
                   _buildChartCard(context),
+                ] else if (_selectedTab == 1) ...[
+                  _buildCategoriesTab(context),
+                ] else if (_selectedTab == 2) ...[
+                  _buildTrendsTab(context),
                 ],
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Helper types ───────────────────────────────────────────────────────────────
+
+class _MonthlyData {
+  const _MonthlyData({
+    required this.label,
+    required this.expenses,
+    required this.income,
+  });
+
+  final String label;
+  final double expenses;
+  final double income;
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: Theme.of(context).textTheme.bodyMedium),
+      ],
     );
   }
 }

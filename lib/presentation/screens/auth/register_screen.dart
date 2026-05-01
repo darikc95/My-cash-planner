@@ -28,10 +28,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _handleRegister() {
     FocusScope.of(context).unfocus();
+    final email = _emailController.text.trim();
+    if (!email.contains('@')) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+              content: Text('Введите корректный email с символом @')),
+        );
+      return;
+    }
+    final password = _passwordController.text;
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+              content: Text('Пароль должен содержать не менее 6 символов')),
+        );
+      return;
+    }
     context.read<AuthBloc>().add(
           AuthRegisterRequested(
-            email: _emailController.text,
-            password: _passwordController.text,
+            email: email,
+            password: password,
           ),
         );
   }

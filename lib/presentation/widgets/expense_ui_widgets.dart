@@ -493,40 +493,51 @@ class DescriptionCard extends StatelessWidget {
 }
 
 class StatsTabs extends StatelessWidget {
-  const StatsTabs({super.key});
+  const StatsTabs({
+    super.key,
+    this.selectedIndex = 0,
+    this.onTap,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int>? onTap;
 
   @override
   Widget build(BuildContext context) {
     const labels = ['Обзор', 'Категории', 'Тренды'];
     return Row(
-      children: labels.map((label) {
-        final isSelected = label == 'Обзор';
+      children: List.generate(labels.length, (index) {
+        final isSelected = index == selectedIndex;
         return Expanded(
-          child: Container(
-            padding: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: isSelected
-                      ? const Color(0xFF6C45E3)
-                      : const Color(0xFFE7E5F1),
-                  width: 2,
-                ),
-              ),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          child: GestureDetector(
+            onTap: onTap == null ? null : () => onTap!(index),
+            child: Container(
+              padding: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
                     color: isSelected
                         ? const Color(0xFF6C45E3)
-                        : const Color(0xFF6F7486),
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        : const Color(0xFFE7E5F1),
+                    width: 2,
                   ),
+                ),
+              ),
+              child: Text(
+                labels[index],
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: isSelected
+                          ? const Color(0xFF6C45E3)
+                          : const Color(0xFF6F7486),
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+              ),
             ),
           ),
         );
-      }).toList(),
+      }),
     );
   }
 }

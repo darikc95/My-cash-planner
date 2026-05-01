@@ -45,27 +45,33 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleForgotPassword() async {
     FocusScope.of(context).unfocus();
 
-    final emailController = TextEditingController(text: _emailController.text);
-    final passwordController = TextEditingController();
+    var resetEmail = _emailController.text;
+    var resetPassword = '';
+
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Сброс пароля'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: 'Эл. почта'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: passwordController,
-                decoration: const InputDecoration(labelText: 'Новый пароль'),
-                obscureText: true,
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  initialValue: resetEmail,
+                  decoration: const InputDecoration(labelText: 'Эл. почта'),
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (v) => resetEmail = v,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: resetPassword,
+                  decoration: const InputDecoration(labelText: 'Новый пароль'),
+                  obscureText: true,
+                  onChanged: (v) => resetPassword = v,
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -75,8 +81,8 @@ class _LoginScreenState extends State<LoginScreen> {
             FilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop({
-                  'email': emailController.text,
-                  'password': passwordController.text,
+                  'email': resetEmail,
+                  'password': resetPassword,
                 });
               },
               child: const Text('Сохранить'),
@@ -85,9 +91,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
     );
-
-    emailController.dispose();
-    passwordController.dispose();
 
     if (!mounted || result == null) {
       return;
@@ -156,8 +159,10 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         if (state.flowAction == AuthFlowAction.loggedIn) {
-          context.go(ExpenseUiRoutes.home);
           context.read<AuthBloc>().add(const AuthMessageHandled());
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) context.go(ExpenseUiRoutes.home);
+          });
         }
       },
       child: BlocBuilder<AuthBloc, AuthState>(
@@ -256,44 +261,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           child:
                               Text(state.isSubmitting ? 'Входим...' : 'Войти'),
-                        ),
-                        const SizedBox(height: 18),
-                        const Row(
-                          children: [
-                            Expanded(child: Divider(indent: 8, endIndent: 12)),
-                            Text('или продолжить через'),
-                            Expanded(child: Divider(indent: 12, endIndent: 8)),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        OutlinedButton.icon(
-                          onPressed: _handleGoogleLogin,
-                          icon: Container(
-                            height: 24,
-                            width: 24,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white,
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'G',
-                                style: TextStyle(
-                                  color: Color(0xFF4285F4),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ),
-                          label: const Text('Войти в demo-аккаунт'),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(56),
-                            backgroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFFE9E7F2)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
                         ),
                         const SizedBox(height: 26),
                         TextButton(

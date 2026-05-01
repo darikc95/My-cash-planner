@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../data/datasources/hive_storage_service.dart';
+import '../../../data/datasources/local_auth_service.dart';
 import '../../widgets/expense_ui_data.dart';
 import '../../widgets/expense_ui_widgets.dart';
 
@@ -21,18 +23,73 @@ class FiltersScreen extends StatefulWidget {
 }
 
 class _FiltersScreenState extends State<FiltersScreen> {
+  final _storageService = const HiveStorageService();
+  final _authService = const LocalAuthService(HiveStorageService());
+
   late Set<String> _selectedCategories;
   DateTime? _startDate;
   DateTime? _endDate;
 
-  List<FilterItem> get _items => filterItems;
+  List<_CombinedCategory> get _allCategories {
+    final combined = <_CombinedCategory>[];
+
+    // Get user categories from Hive as a map
+    final userCatsMap = <String, Map<String, dynamic>>{};
+    final userId = _authService.getCurrentUser()?.id;
+    if (userId != null) {
+      final userCats = _storageService.getUserCategories(userId);
+      for (final cat in userCats) {
+        userCatsMap[cat['name'] as String] = cat;
+      }
+    }
+
+    // Add categories: prefer user version, fall back to default
+    for (final item in filterItems) {
+      final userVersion = userCatsMap[item.label];
+      if (userVersion != null) {
+        // Use user-customized version
+        combined.add(_CombinedCategory(
+          label: item.label,
+          icon: IconData(
+            userVersion['iconCodePoint'] as int,
+            fontFamily: 'MaterialIcons',
+          ),
+          color: Color(userVersion['colorValue'] as int),
+        ));
+      } else {
+        // Use default
+        combined.add(_CombinedCategory(
+          label: item.label,
+          icon: item.icon,
+          color: item.color,
+        ));
+      }
+    }
+
+    // Add remaining user-created categories (not in default list)
+    for (final entry in userCatsMap.entries) {
+      if (!filterItems.any((item) => item.label == entry.key)) {
+        combined.add(_CombinedCategory(
+          label: entry.key,
+          icon: IconData(
+            entry.value['iconCodePoint'] as int,
+            fontFamily: 'MaterialIcons',
+          ),
+          color: Color(entry.value['colorValue'] as int),
+        ));
+      }
+    }
+
+    return combined;
+  }
 
   @override
   void initState() {
     super.initState();
+    final defaultLabels = filterItems.map((item) => item.label).toSet();
     _selectedCategories = widget.initialSelectedCategories == null ||
             widget.initialSelectedCategories!.isEmpty
-        ? _items.map((item) => item.label).toSet()
+        ? defaultLabels
         : widget.initialSelectedCategories!.toSet();
     _startDate = widget.initialStartDate;
     _endDate = widget.initialEndDate;
@@ -40,7 +97,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
 
   void _handleReset() {
     setState(() {
-      _selectedCategories = _items.map((item) => item.label).toSet();
+      _selectedCategories = filterItems.map((item) => item.label).toSet();
       _startDate = null;
       _endDate = null;
     });
@@ -152,9 +209,9 @@ class _FiltersScreenState extends State<FiltersScreen> {
                   Expanded(
                     child: ListView(
                       children: [
-                        ..._items.map((item) {
+                        ..._allCategories.map((cat) {
                           final isSelected =
-                              _selectedCategories.contains(item.label);
+                              _selectedCategories.contains(cat.label);
 
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
@@ -173,11 +230,11 @@ class _FiltersScreenState extends State<FiltersScreen> {
                                     height: 36,
                                     width: 36,
                                     decoration: BoxDecoration(
-                                      color: item.color,
+                                      color: cat.color,
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
-                                      item.icon,
+                                      cat.icon,
                                       color: Colors.white,
                                       size: 18,
                                     ),
@@ -185,7 +242,7 @@ class _FiltersScreenState extends State<FiltersScreen> {
                                   const SizedBox(width: 14),
                                   Expanded(
                                     child: Text(
-                                      item.label,
+                                      cat.label,
                                       style:
                                           Theme.of(context).textTheme.bodyLarge,
                                     ),
@@ -195,10 +252,9 @@ class _FiltersScreenState extends State<FiltersScreen> {
                                     onChanged: (value) {
                                       setState(() {
                                         if (value == true) {
-                                          _selectedCategories.add(item.label);
+                                          _selectedCategories.add(cat.label);
                                         } else {
-                                          _selectedCategories
-                                              .remove(item.label);
+                                          _selectedCategories.remove(cat.label);
                                         }
                                       });
                                     },
@@ -258,4 +314,16 @@ class _FiltersScreenState extends State<FiltersScreen> {
       ),
     );
   }
+}
+
+class _CombinedCategory {
+  const _CombinedCategory({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
 }

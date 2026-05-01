@@ -16,6 +16,7 @@ abstract final class ExpenseUiRoutes {
   static const home = '/home';
   static const register = '/register';
   static const addExpense = '/add-expense';
+  static const editExpense = '/edit-expense';
   static const statistics = '/statistics';
   static const categories = '/categories';
   static const profile = '/profile';
@@ -56,6 +57,13 @@ final GoRouter expenseUiRouter = GoRouter(
     GoRoute(
       path: ExpenseUiRoutes.addExpense,
       builder: (_, __) => const AddExpenseScreen(),
+    ),
+    GoRoute(
+      path: ExpenseUiRoutes.editExpense,
+      builder: (_, state) {
+        final expense = state.extra as dynamic;
+        return AddExpenseScreen(editExpense: expense);
+      },
     ),
     GoRoute(
       path: ExpenseUiRoutes.statistics,

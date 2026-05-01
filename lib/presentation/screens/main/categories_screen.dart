@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../data/datasources/hive_storage_service.dart';
+import '../../../data/datasources/local_auth_service.dart';
 import '../../widgets/expense_ui_data.dart';
 import '../../widgets/expense_ui_widgets.dart';
 import '../app/expense_ui_routes.dart';
@@ -12,8 +14,14 @@ class CategoriesScreen extends StatefulWidget {
   State<CategoriesScreen> createState() => _CategoriesScreenState();
 }
 
-class _CategoriesScreenState extends State<CategoriesScreen> {
-  late List<_CategoryItem> _categories;
+class _CategoriesScreenState extends State<CategoriesScreen>
+    with SingleTickerProviderStateMixin {
+  final _storageService = const HiveStorageService();
+  final _authService = const LocalAuthService(HiveStorageService());
+
+  late TabController _tabController;
+  late List<_CategoryItem> _expenseCategories;
+  late List<_CategoryItem> _incomeCategories;
 
   void _handleBottomBarTap(BuildContext context, int index) {
     switch (index) {
@@ -31,22 +39,149 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   @override
   void initState() {
     super.initState();
-    _categories = filterItems
-        .asMap()
-        .entries
-        .map(
-          (entry) => _CategoryItem(
-            id: 'category_${entry.key}',
-            name: entry.value.label,
-            icon: entry.value.icon,
-            color: entry.value.color,
-            isActive: entry.value.selected,
-          ),
-        )
-        .toList();
+    _tabController = TabController(length: 2, vsync: this);
+    _expenseCategories = [];
+    _incomeCategories = [];
+    _loadExpenseCategories();
+    _loadIncomeCategories();
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // ─── Expense categories ───────────────────────────────────────────────────
+
+  void _loadExpenseCategories() {
+    final userId = _authService.getCurrentUser()?.id;
+    if (userId == null) {
+      _setDefaultExpenseCategories();
+      return;
+    }
+    final saved = _storageService.getUserCategories(userId);
+    if (saved.isEmpty) {
+      _setDefaultExpenseCategories();
+      _persistExpenseCategories();
+    } else {
+      setState(() {
+        _expenseCategories = saved.map((m) {
+          return _CategoryItem(
+            id: m['id'] as String,
+            name: m['name'] as String,
+            icon: IconData(
+              m['iconCodePoint'] as int,
+              fontFamily: 'MaterialIcons',
+            ),
+            color: Color(m['colorValue'] as int),
+            isActive: (m['isActive'] as bool?) ?? true,
+          );
+        }).toList();
+      });
+    }
+  }
+
+  void _setDefaultExpenseCategories() {
+    setState(() {
+      _expenseCategories = filterItems
+          .asMap()
+          .entries
+          .map((entry) => _CategoryItem(
+                id: 'category_${entry.key}',
+                name: entry.value.label,
+                icon: entry.value.icon,
+                color: entry.value.color,
+                isActive: entry.value.selected,
+              ))
+          .toList();
+    });
+  }
+
+  Future<void> _persistExpenseCategories() async {
+    final userId = _authService.getCurrentUser()?.id;
+    if (userId == null) return;
+    await _storageService.saveUserCategories(
+      userId,
+      _expenseCategories
+          .map((c) => {
+                'id': c.id,
+                'name': c.name,
+                'iconCodePoint': c.icon.codePoint,
+                'colorValue': c.color.toARGB32(),
+                'isActive': c.isActive,
+              })
+          .toList(),
+    );
+  }
+
+  // ─── Income categories ────────────────────────────────────────────────────
+
+  void _loadIncomeCategories() {
+    final userId = _authService.getCurrentUser()?.id;
+    if (userId == null) {
+      _setDefaultIncomeCategories();
+      return;
+    }
+    final saved = _storageService.getUserIncomeCategories(userId);
+    if (saved.isEmpty) {
+      _setDefaultIncomeCategories();
+      _persistIncomeCategories();
+    } else {
+      setState(() {
+        _incomeCategories = saved.map((m) {
+          return _CategoryItem(
+            id: m['id'] as String,
+            name: m['name'] as String,
+            icon: IconData(
+              m['iconCodePoint'] as int,
+              fontFamily: 'MaterialIcons',
+            ),
+            color: Color(m['colorValue'] as int),
+            isActive: (m['isActive'] as bool?) ?? true,
+          );
+        }).toList();
+      });
+    }
+  }
+
+  void _setDefaultIncomeCategories() {
+    setState(() {
+      _incomeCategories = filterIncomeItems
+          .asMap()
+          .entries
+          .map((entry) => _CategoryItem(
+                id: 'income_category_${entry.key}',
+                name: entry.value.label,
+                icon: entry.value.icon,
+                color: entry.value.color,
+                isActive: entry.value.selected,
+              ))
+          .toList();
+    });
+  }
+
+  Future<void> _persistIncomeCategories() async {
+    final userId = _authService.getCurrentUser()?.id;
+    if (userId == null) return;
+    await _storageService.saveUserIncomeCategories(
+      userId,
+      _incomeCategories
+          .map((c) => {
+                'id': c.id,
+                'name': c.name,
+                'iconCodePoint': c.icon.codePoint,
+                'colorValue': c.color.toARGB32(),
+                'isActive': c.isActive,
+              })
+          .toList(),
+    );
+  }
+
+  // ─── CRUD ─────────────────────────────────────────────────────────────────
+
   Future<void> _createCategory() async {
+    final isIncomeTab = _tabController.index == 1;
     final draft = await showDialog<_CategoryDraft>(
       context: context,
       builder: (_) => const _CategoryEditorDialog(
@@ -54,26 +189,43 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         actionLabel: 'Создать',
       ),
     );
+    if (!mounted || draft == null) return;
 
-    if (!mounted || draft == null) {
-      return;
+    if (isIncomeTab) {
+      setState(() {
+        _incomeCategories = [
+          ..._incomeCategories,
+          _CategoryItem(
+            id: 'income_category_${DateTime.now().millisecondsSinceEpoch}',
+            name: draft.name,
+            icon: draft.icon,
+            color: draft.color,
+            isActive: true,
+          ),
+        ];
+      });
+      await _persistIncomeCategories();
+    } else {
+      setState(() {
+        _expenseCategories = [
+          ..._expenseCategories,
+          _CategoryItem(
+            id: 'category_${DateTime.now().millisecondsSinceEpoch}',
+            name: draft.name,
+            icon: draft.icon,
+            color: draft.color,
+            isActive: true,
+          ),
+        ];
+      });
+      await _persistExpenseCategories();
     }
-
-    setState(() {
-      _categories = [
-        ..._categories,
-        _CategoryItem(
-          id: 'category_${DateTime.now().millisecondsSinceEpoch}',
-          name: draft.name,
-          icon: draft.icon,
-          color: _categoryPalette[_categories.length % _categoryPalette.length],
-          isActive: true,
-        ),
-      ];
-    });
   }
 
-  Future<void> _editCategory(_CategoryItem item) async {
+  Future<void> _editCategory(
+    _CategoryItem item, {
+    required bool isIncome,
+  }) async {
     final draft = await showDialog<_CategoryDraft>(
       context: context,
       builder: (_) => _CategoryEditorDialog(
@@ -81,25 +233,38 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         actionLabel: 'Сохранить',
         initialName: item.name,
         initialIcon: item.icon,
+        initialColor: item.color,
       ),
     );
+    if (!mounted || draft == null) return;
 
-    if (!mounted || draft == null) {
-      return;
+    if (isIncome) {
+      setState(() {
+        _incomeCategories = _incomeCategories
+            .map((c) => c.id == item.id
+                ? c.copyWith(
+                    name: draft.name, icon: draft.icon, color: draft.color)
+                : c)
+            .toList();
+      });
+      await _persistIncomeCategories();
+    } else {
+      setState(() {
+        _expenseCategories = _expenseCategories
+            .map((c) => c.id == item.id
+                ? c.copyWith(
+                    name: draft.name, icon: draft.icon, color: draft.color)
+                : c)
+            .toList();
+      });
+      await _persistExpenseCategories();
     }
-
-    setState(() {
-      _categories = _categories
-          .map(
-            (category) => category.id == item.id
-                ? category.copyWith(name: draft.name, icon: draft.icon)
-                : category,
-          )
-          .toList();
-    });
   }
 
-  Future<void> _deleteCategory(_CategoryItem item) async {
+  Future<void> _deleteCategory(
+    _CategoryItem item, {
+    required bool isIncome,
+  }) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -117,36 +282,90 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         ],
       ),
     );
+    if (!mounted || shouldDelete != true) return;
 
-    if (!mounted || shouldDelete != true) {
-      return;
+    if (isIncome) {
+      setState(() {
+        _incomeCategories =
+            _incomeCategories.where((c) => c.id != item.id).toList();
+      });
+      await _persistIncomeCategories();
+    } else {
+      setState(() {
+        _expenseCategories =
+            _expenseCategories.where((c) => c.id != item.id).toList();
+      });
+      await _persistExpenseCategories();
     }
-
-    setState(() {
-      _categories =
-          _categories.where((category) => category.id != item.id).toList();
-    });
   }
 
-  void _toggleCategory(_CategoryItem item, bool value) {
-    setState(() {
-      _categories = _categories
-          .map(
-            (category) => category.id == item.id
-                ? category.copyWith(isActive: value)
-                : category,
-          )
-          .toList();
-    });
+  void _toggleCategory(
+    _CategoryItem item,
+    bool value, {
+    required bool isIncome,
+  }) {
+    if (isIncome) {
+      setState(() {
+        _incomeCategories = _incomeCategories
+            .map((c) => c.id == item.id ? c.copyWith(isActive: value) : c)
+            .toList();
+      });
+      _persistIncomeCategories();
+    } else {
+      setState(() {
+        _expenseCategories = _expenseCategories
+            .map((c) => c.id == item.id ? c.copyWith(isActive: value) : c)
+            .toList();
+      });
+      _persistExpenseCategories();
+    }
   }
 
-  void _onMenuAction(_CategoryAction action, _CategoryItem item) {
+  void _onMenuAction(
+    _CategoryAction action,
+    _CategoryItem item, {
+    required bool isIncome,
+  }) {
     switch (action) {
       case _CategoryAction.edit:
-        _editCategory(item);
+        _editCategory(item, isIncome: isIncome);
       case _CategoryAction.delete:
-        _deleteCategory(item);
+        _deleteCategory(item, isIncome: isIncome);
     }
+  }
+
+  Widget _buildCategoryList(
+    List<_CategoryItem> items, {
+    required bool isIncome,
+  }) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 110),
+      children: [
+        if (items.isEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Text(
+                'Список пуст. Добавьте первую категорию.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+          )
+        else
+          ...items.map((item) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _CategoryStatusTile(
+                item: item,
+                onChanged: (value) =>
+                    _toggleCategory(item, value, isIncome: isIncome),
+                onAction: (action) =>
+                    _onMenuAction(action, item, isIncome: isIncome),
+              ),
+            );
+          }),
+      ],
+    );
   }
 
   @override
@@ -161,55 +380,64 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         onTap: (index) => _handleBottomBarTap(context, index),
       ),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 110),
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'Категории',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const Spacer(),
-                    TopActionButton(
-                      icon: Icons.add_rounded,
-                      onPressed: _createCategory,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Настройте набор категорий для будущей логики',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 16),
-                if (_categories.isEmpty)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Text(
-                        'Список пуст. Добавьте первую категорию.',
-                        style: Theme.of(context).textTheme.bodyLarge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 430),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Категории',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const Spacer(),
+                          TopActionButton(
+                            icon: Icons.add_rounded,
+                            onPressed: _createCategory,
+                          ),
+                        ],
                       ),
-                    ),
-                  )
-                else
-                  ..._categories.map((item) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _CategoryStatusTile(
-                        item: item,
-                        onChanged: (value) => _toggleCategory(item, value),
-                        onAction: (action) => _onMenuAction(action, item),
+                      const SizedBox(height: 12),
+                      TabBar(
+                        controller: _tabController,
+                        tabs: const [
+                          Tab(text: 'Расходы'),
+                          Tab(text: 'Доходы'),
+                        ],
                       ),
-                    );
-                  }),
-              ],
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 430),
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildCategoryList(
+                        _expenseCategories,
+                        isIncome: false,
+                      ),
+                      _buildCategoryList(
+                        _incomeCategories,
+                        isIncome: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -285,12 +513,14 @@ class _CategoryEditorDialog extends StatefulWidget {
     required this.actionLabel,
     this.initialName,
     this.initialIcon,
+    this.initialColor,
   });
 
   final String title;
   final String actionLabel;
   final String? initialName;
   final IconData? initialIcon;
+  final Color? initialColor;
 
   @override
   State<_CategoryEditorDialog> createState() => _CategoryEditorDialogState();
@@ -299,12 +529,14 @@ class _CategoryEditorDialog extends StatefulWidget {
 class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
   late final TextEditingController _nameController;
   late IconData _selectedIcon;
+  late Color _selectedColor;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialName ?? '');
     _selectedIcon = widget.initialIcon ?? _iconChoices.first;
+    _selectedColor = widget.initialColor ?? _categoryPalette.first;
   }
 
   @override
@@ -320,7 +552,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
     }
 
     Navigator.of(context).pop(
-      _CategoryDraft(name: name, icon: _selectedIcon),
+      _CategoryDraft(name: name, icon: _selectedIcon, color: _selectedColor),
     );
   }
 
@@ -386,6 +618,50 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                 );
               }).toList(),
             ),
+            const SizedBox(height: 16),
+            Text(
+              'Цвет',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _categoryPalette.map((color) {
+                final isSelected = color == _selectedColor;
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedColor = color;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    height: 42,
+                    width: 42,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? Colors.white : Colors.transparent,
+                        width: 3,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              )
+                            ]
+                          : [],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
           ],
         ),
       ),
@@ -406,10 +682,15 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
 enum _CategoryAction { edit, delete }
 
 class _CategoryDraft {
-  const _CategoryDraft({required this.name, required this.icon});
+  const _CategoryDraft({
+    required this.name,
+    required this.icon,
+    required this.color,
+  });
 
   final String name;
   final IconData icon;
+  final Color color;
 }
 
 class _CategoryItem {

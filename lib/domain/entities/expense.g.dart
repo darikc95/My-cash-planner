@@ -25,13 +25,14 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       date: fields[5] as DateTime,
       note: fields[6] as String?,
       iconCodePoint: fields[7] as int?,
+      isIncome: fields[8] == null ? false : fields[8] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, Expense obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +48,9 @@ class ExpenseAdapter extends TypeAdapter<Expense> {
       ..writeByte(6)
       ..write(obj.note)
       ..writeByte(7)
-      ..write(obj.iconCodePoint);
+      ..write(obj.iconCodePoint)
+      ..writeByte(8)
+      ..write(obj.isIncome);
   }
 
   @override

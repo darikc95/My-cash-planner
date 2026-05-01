@@ -13,6 +13,7 @@ class Expense {
     required this.date,
     this.note,
     this.iconCodePoint,
+    this.isIncome = false,
   });
 
   @HiveField(0)
@@ -39,6 +40,9 @@ class Expense {
   @HiveField(7)
   final int? iconCodePoint;
 
+  @HiveField(8)
+  final bool isIncome;
+
   bool get hasNote => note != null && note!.trim().isNotEmpty;
 
   Expense copyWith({
@@ -50,6 +54,7 @@ class Expense {
     DateTime? date,
     String? note,
     int? iconCodePoint,
+    bool? isIncome,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -60,6 +65,7 @@ class Expense {
       date: date ?? this.date,
       note: note ?? this.note,
       iconCodePoint: iconCodePoint ?? this.iconCodePoint,
+      isIncome: isIncome ?? this.isIncome,
     );
   }
 }
