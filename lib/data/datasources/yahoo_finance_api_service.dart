@@ -83,7 +83,6 @@ class YahooFinanceApiService {
     }
 
     final errors = <String>[];
-    // Собираем данные из обоих endpoints, объединяя результаты
     var resultMap = <String, FinanceQuote>{};
 
     try {
@@ -100,7 +99,6 @@ class YahooFinanceApiService {
       errors.add('enclout: ${_formatDioError(error)}');
     }
 
-    // Запрашиваем apidojo для символов, которых не хватает
     final missingAfterEnclout = cleanedSymbols
         .where((s) => !resultMap.containsKey(s))
         .toList(growable: false);
@@ -128,7 +126,6 @@ class YahooFinanceApiService {
       );
     }
 
-    // Вычисляем кросс-курсы для символов, которых всё ещё нет
     final crossRates = await _computeCrossRates(
       requestedSymbols: cleanedSymbols,
       available: resultMap,
@@ -160,12 +157,10 @@ class YahooFinanceApiService {
 
     if (missing.isEmpty) return const [];
 
-    // Собираем вспомогательные пары для запроса
     final helpersNeeded = <String>{};
     for (final sym in missing) {
       helpersNeeded.add(_crossRateHelpers[sym]!.helper);
     }
-    // USDKZT=X нужен как база для всех вычислений
     helpersNeeded.add('USDKZT=X');
 
     final toFetch =
@@ -183,9 +178,7 @@ class YahooFinanceApiService {
         for (final q in fetched) {
           helperMap[q.symbol.toUpperCase()] = q;
         }
-      } catch (_) {
-        // Если вспомогательные пары не загрузились — пропускаем кросс-расчёт
-      }
+      } catch (_) {}
     }
 
     final usdKzt = helperMap['USDKZT=X'];
@@ -273,9 +266,7 @@ class YahooFinanceApiService {
             return fromFile;
           }
         }
-      } catch (_) {
-        // Пробуем следующий путь.
-      }
+      } catch (_) {}
     }
 
     return '';

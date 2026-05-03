@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/datasources/hive_storage_service.dart';
-import '../../../data/datasources/local_auth_service.dart';
+import '../../../application/planner_facade.dart';
+import '../../../core/utils/icon_utils.dart';
 import '../../widgets/expense_ui_data.dart';
 import '../../widgets/expense_ui_widgets.dart';
 import '../app/expense_ui_routes.dart';
@@ -16,8 +16,7 @@ class CategoriesScreen extends StatefulWidget {
 
 class _CategoriesScreenState extends State<CategoriesScreen>
     with SingleTickerProviderStateMixin {
-  final _storageService = const HiveStorageService();
-  final _authService = const LocalAuthService(HiveStorageService());
+  final _planner = PlannerFacade.instance;
 
   late TabController _tabController;
   late List<_CategoryItem> _expenseCategories;
@@ -52,15 +51,13 @@ class _CategoriesScreenState extends State<CategoriesScreen>
     super.dispose();
   }
 
-  // ─── Expense categories ───────────────────────────────────────────────────
-
   void _loadExpenseCategories() {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId == null) {
       _setDefaultExpenseCategories();
       return;
     }
-    final saved = _storageService.getUserCategories(userId);
+    final saved = _planner.getUserCategories(userId);
     if (saved.isEmpty) {
       _setDefaultExpenseCategories();
       _persistExpenseCategories();
@@ -70,10 +67,7 @@ class _CategoriesScreenState extends State<CategoriesScreen>
           return _CategoryItem(
             id: m['id'] as String,
             name: m['name'] as String,
-            icon: IconData(
-              m['iconCodePoint'] as int,
-              fontFamily: 'MaterialIcons',
-            ),
+            icon: createMaterialIcon(m['iconCodePoint'] as int),
             color: Color(m['colorValue'] as int),
             isActive: (m['isActive'] as bool?) ?? true,
           );
@@ -99,9 +93,9 @@ class _CategoriesScreenState extends State<CategoriesScreen>
   }
 
   Future<void> _persistExpenseCategories() async {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId == null) return;
-    await _storageService.saveUserCategories(
+    await _planner.saveUserCategories(
       userId,
       _expenseCategories
           .map((c) => {
@@ -115,15 +109,13 @@ class _CategoriesScreenState extends State<CategoriesScreen>
     );
   }
 
-  // ─── Income categories ────────────────────────────────────────────────────
-
   void _loadIncomeCategories() {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId == null) {
       _setDefaultIncomeCategories();
       return;
     }
-    final saved = _storageService.getUserIncomeCategories(userId);
+    final saved = _planner.getUserIncomeCategories(userId);
     if (saved.isEmpty) {
       _setDefaultIncomeCategories();
       _persistIncomeCategories();
@@ -133,10 +125,7 @@ class _CategoriesScreenState extends State<CategoriesScreen>
           return _CategoryItem(
             id: m['id'] as String,
             name: m['name'] as String,
-            icon: IconData(
-              m['iconCodePoint'] as int,
-              fontFamily: 'MaterialIcons',
-            ),
+            icon: createMaterialIcon(m['iconCodePoint'] as int),
             color: Color(m['colorValue'] as int),
             isActive: (m['isActive'] as bool?) ?? true,
           );
@@ -162,9 +151,9 @@ class _CategoriesScreenState extends State<CategoriesScreen>
   }
 
   Future<void> _persistIncomeCategories() async {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId == null) return;
-    await _storageService.saveUserIncomeCategories(
+    await _planner.saveUserIncomeCategories(
       userId,
       _incomeCategories
           .map((c) => {
@@ -177,8 +166,6 @@ class _CategoriesScreenState extends State<CategoriesScreen>
           .toList(),
     );
   }
-
-  // ─── CRUD ─────────────────────────────────────────────────────────────────
 
   Future<void> _createCategory() async {
     final isIncomeTab = _tabController.index == 1;

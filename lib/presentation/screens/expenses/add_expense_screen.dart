@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../application/planner_facade.dart';
+import '../../../core/utils/icon_utils.dart';
 import '../../../core/notifications/local_notifications_service.dart';
-import '../../../data/datasources/hive_storage_service.dart';
-import '../../../data/datasources/local_auth_service.dart';
 import '../../../domain/entities/expense.dart';
 import '../../widgets/expense_ui_data.dart';
 import '../../widgets/expense_ui_widgets.dart';
@@ -20,8 +20,7 @@ class AddExpenseScreen extends StatefulWidget {
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _storageService = const HiveStorageService();
-  final _authService = const LocalAuthService(HiveStorageService());
+  final _planner = PlannerFacade.instance;
 
   String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
@@ -45,22 +44,19 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   void _loadCategories() {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     final List<_CatEntry> entries;
     if (userId != null) {
       final saved = _isIncome
-          ? _storageService.getUserIncomeCategories(userId)
-          : _storageService.getUserCategories(userId);
+          ? _planner.getUserIncomeCategories(userId)
+          : _planner.getUserCategories(userId);
       if (saved.isNotEmpty) {
         entries = saved
             .where((m) => (m['isActive'] as bool?) != false)
             .map(
               (m) => _CatEntry(
                 name: m['name'] as String,
-                icon: IconData(
-                  m['iconCodePoint'] as int,
-                  fontFamily: 'MaterialIcons',
-                ),
+                icon: createMaterialIcon(m['iconCodePoint'] as int),
                 color: Color(m['colorValue'] as int),
               ),
             )
@@ -89,7 +85,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
     setState(() {
       _categories = entries;
-      // При смене типа сбрасываем выбор, если старая категория не подходит
       if (_selectedCategory == null ||
           !entries.any((c) => c.name == _selectedCategory)) {
         _selectedCategory = entries.isNotEmpty ? entries.first.name : null;
@@ -122,7 +117,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   Future<void> _saveExpense() async {
     FocusScope.of(context).unfocus();
 
-    final currentUser = _authService.getCurrentUser();
+    final currentUser = _planner.getCurrentUser();
     final amount = double.tryParse(
       _amountController.text.trim().replaceAll(' ', '').replaceAll(',', '.'),
     );
@@ -164,24 +159,22 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         isIncome: _isIncome,
       );
 
-      await _storageService.saveExpense(expense);
+      await _planner.saveExpense(expense);
 
-      // Сразу снимаем состояние сохранения: уведомления не должны блокировать UI.
       if (mounted) {
         setState(() => _isSaving = false);
       }
 
-      // Check budget limit for month of operation
       if (!_isIncome) {
         final budgetAlertsEnabled =
-            _storageService.getUserBudgetAlertsEnabled(userId: currentUser.id);
+            _planner.getUserBudgetAlertsEnabled(userId: currentUser.id);
 
         if (budgetAlertsEnabled) {
           final budgetMonth = DateTime(_selectedDate.year, _selectedDate.month);
-          final limit = _storageService.getUserBudgetLimit(currentUser.id,
-              month: budgetMonth);
+          final limit =
+              _planner.getUserBudgetLimit(currentUser.id, month: budgetMonth);
           if (limit != null && limit > 0 && mounted) {
-            final monthExpenses = _storageService
+            final monthExpenses = _planner
                 .getExpensesByUserId(currentUser.id)
                 .where(
                   (e) =>
@@ -191,8 +184,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 )
                 .fold<double>(0, (s, e) => s + e.amount);
             if (monthExpenses >= limit) {
-              final pushEnabled =
-                  _storageService.getUserPushNotificationsEnabled(
+              final pushEnabled = _planner.getUserPushNotificationsEnabled(
                 userId: currentUser.id,
               );
               if (pushEnabled) {
@@ -204,9 +196,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         month: budgetMonth,
                       )
                       .timeout(const Duration(seconds: 2));
-                } catch (_) {
-                  // Не блокируем сохранение, если уведомление не отправилось.
-                }
+                } catch (_) {}
               }
               await _showBudgetAlert(monthExpenses, limit, budgetMonth);
             }
@@ -321,7 +311,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  // Income / Expense toggle
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(

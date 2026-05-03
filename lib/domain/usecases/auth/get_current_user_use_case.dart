@@ -1,12 +1,12 @@
-import '../../../data/datasources/local_auth_service.dart';
 import '../../entities/user.dart';
+import '../../repositories/auth_repository.dart';
 
 class GetCurrentUserUseCase {
-  const GetCurrentUserUseCase(this._authService);
+  const GetCurrentUserUseCase(this._authRepository);
 
-  final LocalAuthService _authService;
+  final AuthRepository _authRepository;
 
   User? call() {
-    return _authService.getCurrentUser();
+    return _authRepository.getCurrentUser();
   }
 }

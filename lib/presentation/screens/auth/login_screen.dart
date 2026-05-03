@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/datasources/hive_storage_service.dart';
-import '../../../data/datasources/local_auth_service.dart';
+import '../../../domain/repositories/auth_repository.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../widgets/expense_ui_widgets.dart';
 import '../app/expense_ui_routes.dart';
@@ -96,8 +95,8 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    const authService = LocalAuthService(HiveStorageService());
-    final resetResult = await authService.resetPassword(
+    final authRepository = context.read<AuthRepository>();
+    final resetResult = await authRepository.resetPassword(
       email: result['email'] ?? '',
       newPassword: result['password'] ?? '',
     );

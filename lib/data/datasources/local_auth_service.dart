@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 
 import '../../core/constants/hive_box_names.dart';
+import '../../domain/entities/auth_action_result.dart';
 import '../../domain/entities/user.dart';
 import 'hive_storage_service.dart';
 
@@ -239,21 +240,4 @@ class LocalAuthService {
     await _authBox.put(_passwordByUserIdKey(user.id), password);
     await _settingsBox.put(_passwordByUserIdKey(user.id), password);
   }
-}
-
-class AuthActionResult {
-  const AuthActionResult._({
-    required this.success,
-    this.user,
-    this.message,
-  });
-
-  const AuthActionResult.success(User user) : this._(success: true, user: user);
-
-  const AuthActionResult.failure(String message)
-      : this._(success: false, message: message);
-
-  final bool success;
-  final User? user;
-  final String? message;
 }

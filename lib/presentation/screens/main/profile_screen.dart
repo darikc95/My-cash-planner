@@ -3,15 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../application/planner_facade.dart';
 import '../../../core/notifications/local_notifications_service.dart';
 import '../../../core/theme/app_theme_controller.dart';
-import '../../../data/datasources/hive_storage_service.dart';
-import '../../../data/datasources/local_auth_service.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../widgets/expense_ui_widgets.dart';
 import '../app/expense_ui_routes.dart';
 
-// Predefined avatar options (icon + background color)
 const _avatarOptions = <_AvatarOption>[
   _AvatarOption(Icons.person_rounded, Color(0xFF6C45E3), Color(0xFFEFEAFF)),
   _AvatarOption(Icons.face_rounded, Color(0xFF4A86F7), Color(0xFFE8F0FF)),
@@ -44,8 +42,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _storageService = const HiveStorageService();
-  final _authService = const LocalAuthService(HiveStorageService());
+  final _planner = PlannerFacade.instance;
 
   int _avatarIndex = 0;
 
@@ -56,10 +53,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadAvatarIndex() {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId != null) {
       setState(() {
-        _avatarIndex = _storageService.getUserAvatarIndex(userId);
+        _avatarIndex = _planner.getUserAvatarIndex(userId);
       });
     }
   }
@@ -85,9 +82,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (!mounted || selected == null) return;
 
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId != null) {
-      await _storageService.saveUserAvatarIndex(userId, selected);
+      await _planner.saveUserAvatarIndex(userId, selected);
     }
 
     setState(() => _avatarIndex = selected);
@@ -133,7 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (newName == null || newName.trim().isEmpty) return;
     if (!mounted) return;
 
-    final result = await _authService.updateProfile(
+    final result = await _planner.updateProfile(
       userId: currentUser.id,
       name: newName.trim(),
     );
@@ -209,7 +206,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (credentials == null || !mounted) return;
 
-    final result = await _authService.changePassword(
+    final result = await _planner.changePassword(
       userId: currentUser.id,
       currentPassword: credentials['currentPassword'] ?? '',
       newPassword: credentials['newPassword'] ?? '',
@@ -225,7 +222,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleBudgetLimit() async {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId == null) {
       _showMessage('Пользователь не найден.');
       return;
@@ -234,7 +231,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final now = DateTime.now();
     final currentMonth = DateTime(now.year, now.month);
     final currentLimit =
-        _storageService.getUserBudgetLimit(userId, month: currentMonth);
+        _planner.getUserBudgetLimit(userId, month: currentMonth);
     String inputValue =
         currentLimit != null ? currentLimit.toStringAsFixed(0) : '';
 
@@ -296,7 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted || result == null) return;
 
     if (result < 0) {
-      await _storageService.clearUserBudgetLimit(userId, month: currentMonth);
+      await _planner.clearUserBudgetLimit(userId, month: currentMonth);
       if (!mounted) return;
       setState(() {});
       _showMessage(
@@ -309,7 +306,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    await _storageService.saveUserBudgetLimit(
+    await _planner.saveUserBudgetLimit(
       userId,
       result,
       month: currentMonth,
@@ -323,11 +320,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleNotifications() async {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     var pushNotifications =
-        _storageService.getUserPushNotificationsEnabled(userId: userId);
-    var budgetAlerts =
-        _storageService.getUserBudgetAlertsEnabled(userId: userId);
+        _planner.getUserPushNotificationsEnabled(userId: userId);
+    var budgetAlerts = _planner.getUserBudgetAlertsEnabled(userId: userId);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -347,7 +343,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onChanged: (value) async {
                       if (!value) {
                         setSheetState(() => pushNotifications = false);
-                        await _storageService.saveUserPushNotificationsEnabled(
+                        await _planner.saveUserPushNotificationsEnabled(
                           false,
                           userId: userId,
                         );
@@ -360,7 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           .ensurePermissionsGranted();
                       if (!granted) {
                         setSheetState(() => pushNotifications = false);
-                        await _storageService.saveUserPushNotificationsEnabled(
+                        await _planner.saveUserPushNotificationsEnabled(
                           false,
                           userId: userId,
                         );
@@ -372,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
 
                       setSheetState(() => pushNotifications = true);
-                      await _storageService.saveUserPushNotificationsEnabled(
+                      await _planner.saveUserPushNotificationsEnabled(
                         true,
                         userId: userId,
                       );
@@ -388,7 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle: const Text('Предупреждать о превышении лимита'),
                     onChanged: (value) {
                       setSheetState(() => budgetAlerts = value);
-                      _storageService.saveUserBudgetAlertsEnabled(
+                      _planner.saveUserBudgetAlertsEnabled(
                         value,
                         userId: userId,
                       );
@@ -404,7 +400,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleThemeMode() async {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     var isDark = AppThemeController.themeMode.value == ThemeMode.dark;
 
     await showModalBottomSheet<void>(
@@ -426,7 +422,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       setSheetState(() => isDark = value);
                       final mode = value ? ThemeMode.dark : ThemeMode.light;
                       AppThemeController.themeMode.value = mode;
-                      await _storageService.saveUserThemeMode(
+                      await _planner.saveUserThemeMode(
                         AppThemeController.toStorage(mode),
                         userId: userId,
                       );
@@ -528,7 +524,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final now = DateTime.now();
           final currentMonth = DateTime(now.year, now.month);
           final budgetLimit = userId != null
-              ? _storageService.getUserBudgetLimit(userId, month: currentMonth)
+              ? _planner.getUserBudgetLimit(userId, month: currentMonth)
               : null;
 
           final avatarOpt =
@@ -696,8 +692,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ── Avatar picker dialog ───────────────────────────────────────────────────────
-
 class _AvatarPickerDialog extends StatefulWidget {
   const _AvatarPickerDialog({required this.currentIndex});
 
@@ -767,8 +761,6 @@ class _AvatarPickerDialogState extends State<_AvatarPickerDialog> {
     );
   }
 }
-
-// ── Profile action tile ────────────────────────────────────────────────────────
 
 class _ProfileActionTile extends StatelessWidget {
   const _ProfileActionTile({

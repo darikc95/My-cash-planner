@@ -4,8 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/datasources/hive_storage_service.dart';
-import '../../../data/datasources/local_auth_service.dart';
+import '../../../application/planner_facade.dart';
 import '../../../domain/entities/expense.dart';
 import '../../widgets/expense_ui_data.dart';
 import '../../widgets/expense_ui_widgets.dart';
@@ -19,8 +18,7 @@ class StatisticsScreen extends StatefulWidget {
 }
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
-  final _storageService = const HiveStorageService();
-  final _authService = const LocalAuthService(HiveStorageService());
+  final _planner = PlannerFacade.instance;
 
   List<Expense> _expenses = const [];
   bool _isLoading = true;
@@ -38,10 +36,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       _isLoading = true;
     });
 
-    final currentUser = _authService.getCurrentUser();
+    final currentUser = _planner.getCurrentUser();
     final expenses = currentUser == null
         ? const <Expense>[]
-        : _storageService.getExpensesByUserId(currentUser.id);
+        : _planner.getExpensesByUserId(currentUser.id);
 
     if (!mounted) {
       return;
@@ -125,10 +123,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       _filteredExpenses.where((e) => !e.isIncome).toList(growable: false);
 
   Color _getCategoryColor(String category) {
-    // First, check user-customized categories in Hive (including modified default ones)
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId != null) {
-      final cats = _storageService.getUserCategories(userId);
+      final cats = _planner.getUserCategories(userId);
       final cat = cats.cast<Map<String, dynamic>?>().firstWhere(
             (c) => c?['name'] == category,
             orElse: () => null,
@@ -137,7 +134,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         return Color(cat['colorValue'] as int);
       }
     }
-    // Then, check default categories
     final match = filterItems.cast<FilterItem?>().firstWhere(
           (item) => item?.label == category,
           orElse: () => null,
@@ -708,8 +704,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 }
-
-// ── Helper types ───────────────────────────────────────────────────────────────
 
 class _MonthlyData {
   const _MonthlyData({

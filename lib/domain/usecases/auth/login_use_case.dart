@@ -1,14 +1,15 @@
-import '../../../data/datasources/local_auth_service.dart';
+import '../../entities/auth_action_result.dart';
+import '../../repositories/auth_repository.dart';
 
 class LoginUseCase {
-  const LoginUseCase(this._authService);
+  const LoginUseCase(this._authRepository);
 
-  final LocalAuthService _authService;
+  final AuthRepository _authRepository;
 
   Future<AuthActionResult> call({
     required String email,
     required String password,
   }) {
-    return _authService.login(email: email, password: password);
+    return _authRepository.login(email: email, password: password);
   }
 }

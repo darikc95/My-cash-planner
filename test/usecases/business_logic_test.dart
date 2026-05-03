@@ -1,16 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-import 'package:template/data/datasources/local_auth_service.dart';
+import 'package:template/domain/entities/auth_action_result.dart';
 import 'package:template/domain/entities/expense.dart';
 import 'package:template/domain/entities/user.dart';
+import 'package:template/domain/repositories/auth_repository.dart';
 import 'package:template/domain/repositories/expense_repository.dart';
 import 'package:template/domain/usecases/auth/login_use_case.dart';
 import 'package:template/domain/usecases/auth/register_use_case.dart';
 
 // ── Моки ──────────────────────────────────────────────────────────────────────
 
-class MockLocalAuthService extends Mock implements LocalAuthService {}
+class MockAuthRepository extends Mock implements AuthRepository {}
 
 class MockExpenseRepository extends Mock implements ExpenseRepository {}
 
@@ -47,17 +48,17 @@ Expense _makeExpense({
 void main() {
   // ── 1. Авторизация: успешный вход ──────────────────────────────────────────
   group('LoginUseCase', () {
-    late MockLocalAuthService mockAuthService;
+    late MockAuthRepository mockAuthRepository;
     late LoginUseCase loginUseCase;
 
     setUp(() {
-      mockAuthService = MockLocalAuthService();
-      loginUseCase = LoginUseCase(mockAuthService);
+      mockAuthRepository = MockAuthRepository();
+      loginUseCase = LoginUseCase(mockAuthRepository);
     });
 
     test('1. Успешный вход возвращает success и пользователя', () async {
       when(
-        () => mockAuthService.login(
+        () => mockAuthRepository.login(
           email: 'test@example.com',
           password: 'pass123',
         ),
@@ -74,7 +75,7 @@ void main() {
 
     test('2. Вход с неверным паролем возвращает failure', () async {
       when(
-        () => mockAuthService.login(
+        () => mockAuthRepository.login(
           email: 'test@example.com',
           password: 'wrong',
         ),
@@ -94,17 +95,17 @@ void main() {
 
   // ── 2. Регистрация ─────────────────────────────────────────────────────────
   group('RegisterUseCase', () {
-    late MockLocalAuthService mockAuthService;
+    late MockAuthRepository mockAuthRepository;
     late RegisterUseCase registerUseCase;
 
     setUp(() {
-      mockAuthService = MockLocalAuthService();
-      registerUseCase = RegisterUseCase(mockAuthService);
+      mockAuthRepository = MockAuthRepository();
+      registerUseCase = RegisterUseCase(mockAuthRepository);
     });
 
     test('3. Успешная регистрация нового пользователя', () async {
       when(
-        () => mockAuthService.register(
+        () => mockAuthRepository.register(
           email: 'new@example.com',
           password: 'secure123',
         ),
@@ -121,7 +122,7 @@ void main() {
 
     test('4. Регистрация с уже занятым email возвращает failure', () async {
       when(
-        () => mockAuthService.register(
+        () => mockAuthRepository.register(
           email: 'test@example.com',
           password: 'any',
         ),

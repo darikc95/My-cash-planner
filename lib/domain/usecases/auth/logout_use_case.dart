@@ -1,11 +1,11 @@
-import '../../../data/datasources/local_auth_service.dart';
+import '../../repositories/auth_repository.dart';
 
 class LogoutUseCase {
-  const LogoutUseCase(this._authService);
+  const LogoutUseCase(this._authRepository);
 
-  final LocalAuthService _authService;
+  final AuthRepository _authRepository;
 
   Future<void> call() {
-    return _authService.logout();
+    return _authRepository.logout();
   }
 }

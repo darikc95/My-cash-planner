@@ -1,67 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme_controller.dart';
-import '../../../data/datasources/hive_storage_service.dart';
-import '../../../data/datasources/local_auth_service.dart';
-import '../../../domain/usecases/auth/get_current_user_use_case.dart';
-import '../../../domain/usecases/auth/login_use_case.dart';
-import '../../../domain/usecases/auth/logout_use_case.dart';
-import '../../../domain/usecases/auth/register_use_case.dart';
+import '../../../domain/repositories/auth_repository.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import 'expense_ui_routes.dart';
 
 class MyCashPlannerUiApp extends StatefulWidget {
-  const MyCashPlannerUiApp({super.key});
+  const MyCashPlannerUiApp({
+    super.key,
+    required this.authBloc,
+    required this.authRepository,
+  });
+
+  final AuthBloc authBloc;
+  final AuthRepository authRepository;
 
   @override
   State<MyCashPlannerUiApp> createState() => _MyCashPlannerUiAppState();
 }
 
 class _MyCashPlannerUiAppState extends State<MyCashPlannerUiApp> {
-  final _storageService = const HiveStorageService();
-  final _authService = const LocalAuthService(HiveStorageService());
-  late final AuthBloc _authBloc;
+  late final GoRouter _router;
 
   @override
   void initState() {
     super.initState();
-    final userId = _authService.getCurrentUser()?.id;
-    final rawTheme = _storageService.getUserThemeMode(userId: userId);
-    AppThemeController.themeMode.value =
-        AppThemeController.fromStorage(rawTheme);
-
-    const authService = LocalAuthService(HiveStorageService());
-    _authBloc = AuthBloc(
-      getCurrentUserUseCase: const GetCurrentUserUseCase(authService),
-      loginUseCase: const LoginUseCase(authService),
-      registerUseCase: const RegisterUseCase(authService),
-      logoutUseCase: const LogoutUseCase(authService),
-    )..add(const AuthSessionRequested());
+    _router = createExpenseUiRouter(widget.authBloc);
   }
 
   @override
   void dispose() {
-    _authBloc.close();
+    widget.authBloc.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
-      value: _authBloc,
-      child: ValueListenableBuilder<ThemeMode>(
-        valueListenable: AppThemeController.themeMode,
-        builder: (_, themeMode, __) {
-          return MaterialApp.router(
-            debugShowCheckedModeBanner: false,
-            title: 'Мой бюджет',
-            theme: _buildLightTheme(),
-            darkTheme: _buildDarkTheme(),
-            themeMode: themeMode,
-            routerConfig: expenseUiRouter,
-          );
-        },
+      value: widget.authBloc,
+      child: RepositoryProvider<AuthRepository>.value(
+        value: widget.authRepository,
+        child: ValueListenableBuilder<ThemeMode>(
+          valueListenable: AppThemeController.themeMode,
+          builder: (_, themeMode, __) {
+            return MaterialApp.router(
+              debugShowCheckedModeBanner: false,
+              title: 'Мой бюджет',
+              theme: _buildLightTheme(),
+              darkTheme: _buildDarkTheme(),
+              themeMode: themeMode,
+              routerConfig: _router,
+            );
+          },
+        ),
       ),
     );
   }

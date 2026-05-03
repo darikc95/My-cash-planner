@@ -30,9 +30,7 @@ class LocalNotificationsService {
     try {
       final localTz = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(localTz));
-    } catch (_) {
-      // If timezone lookup fails, keep default timezone.
-    }
+    } catch (_) {}
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');

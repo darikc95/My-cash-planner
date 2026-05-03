@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/datasources/hive_storage_service.dart';
-import '../../../data/datasources/local_auth_service.dart';
-import '../../../data/datasources/yahoo_finance_api_service.dart';
+import '../../../application/planner_facade.dart';
+import '../../../core/utils/icon_utils.dart';
 import '../../../data/models/finance_quote.dart';
 import '../../../domain/entities/expense.dart';
 import '../../widgets/expense_ui_data.dart';
@@ -32,9 +31,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
-  final _financeApiService = YahooFinanceApiService();
-  final _storageService = const HiveStorageService();
-  final _authService = const LocalAuthService(HiveStorageService());
+  final _planner = PlannerFacade.instance;
 
   late List<String> _currencySymbols;
   late Future<List<FinanceQuote>> _quotesFuture;
@@ -49,16 +46,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadCurrencyPreferences();
     _searchController.addListener(_onSearchChanged);
-    // Set default period to last 30 days
     _endDate = DateTime.now();
     _startDate = _endDate!.subtract(const Duration(days: 30));
     _loadExpenses();
   }
 
   void _loadCurrencyPreferences() {
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     final saved =
-        userId != null ? _storageService.getUserCurrencies(userId) : <String>[];
+        userId != null ? _planner.getUserCurrencies(userId) : <String>[];
     final allowedSymbols = _allCurrencies
         .map((c) => _normalizeCurrencySymbol(c['symbol']!))
         .toSet();
@@ -70,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _currencySymbols = normalizedSaved.isNotEmpty
         ? normalizedSaved
         : List.of(_defaultCurrencySymbols);
-    _quotesFuture = _financeApiService.fetchQuotes(symbols: _currencySymbols);
+    _quotesFuture = _planner.fetchQuotes(symbols: _currencySymbols);
   }
 
   @override
@@ -87,10 +83,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadExpenses() async {
     setState(() => _isLoadingExpenses = true);
-    final currentUser = _authService.getCurrentUser();
+    final currentUser = _planner.getCurrentUser();
     final expenses = currentUser == null
         ? const <Expense>[]
-        : _storageService.getExpensesByUserId(currentUser.id);
+        : _planner.getExpensesByUserId(currentUser.id);
     if (!mounted) return;
     setState(() {
       _expenses = expenses;
@@ -126,9 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
         )
         .fold<double>(0, (sum, e) => sum + e.amount);
 
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     final budgetLimit = userId != null
-        ? _storageService.getUserBudgetLimit(userId, month: budgetMonth)
+        ? _planner.getUserBudgetLimit(userId, month: budgetMonth)
         : null;
 
     await showModalBottomSheet<void>(
@@ -270,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _reloadQuotes() {
     setState(() {
-      _quotesFuture = _financeApiService.fetchQuotes(symbols: _currencySymbols);
+      _quotesFuture = _planner.fetchQuotes(symbols: _currencySymbols);
     });
   }
 
@@ -312,7 +308,6 @@ class _HomeScreenState extends State<HomeScreen> {
               _startDate = null;
               _endDate = null;
             } else if (days == null) {
-              // Current month
               final now = DateTime.now();
               _startDate = DateTime(now.year, now.month, 1);
               _endDate = now;
@@ -374,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!mounted || confirmed != true) return;
 
-    await _storageService.deleteExpense(expense.id);
+    await _planner.deleteExpense(expense.id);
     await _loadExpenses();
   }
 
@@ -393,15 +388,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ? normalized
               : List.of(_defaultCurrencySymbols);
 
-          final userId = _authService.getCurrentUser()?.id;
+          final userId = _planner.getCurrentUser()?.id;
           if (userId != null) {
-            await _storageService.saveUserCurrencies(userId, effectiveSymbols);
+            await _planner.saveUserCurrencies(userId, effectiveSymbols);
           }
           if (!mounted) return;
           setState(() {
             _currencySymbols = effectiveSymbols;
-            _quotesFuture =
-                _financeApiService.fetchQuotes(symbols: effectiveSymbols);
+            _quotesFuture = _planner.fetchQuotes(symbols: effectiveSymbols);
           });
         },
       ),
@@ -518,41 +512,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   _CategoryVisual _categoryVisual(String category) {
-    // First, check user-customized categories in Hive (including modified default ones)
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId != null) {
-      // Check expense categories
-      final cats = _storageService.getUserCategories(userId);
+      final cats = _planner.getUserCategories(userId);
       final cat = cats.cast<Map<String, dynamic>?>().firstWhere(
             (c) => c?['name'] == category,
             orElse: () => null,
           );
       if (cat != null) {
         return _CategoryVisual(
-          icon: IconData(
-            cat['iconCodePoint'] as int,
-            fontFamily: 'MaterialIcons',
-          ),
+          icon: createMaterialIcon(cat['iconCodePoint'] as int),
           color: Color(cat['colorValue'] as int),
         );
       }
-      // Check income categories
-      final incomeCats = _storageService.getUserIncomeCategories(userId);
+      final incomeCats = _planner.getUserIncomeCategories(userId);
       final incomeCat = incomeCats.cast<Map<String, dynamic>?>().firstWhere(
             (c) => c?['name'] == category,
             orElse: () => null,
           );
       if (incomeCat != null) {
         return _CategoryVisual(
-          icon: IconData(
-            incomeCat['iconCodePoint'] as int,
-            fontFamily: 'MaterialIcons',
-          ),
+          icon: createMaterialIcon(incomeCat['iconCodePoint'] as int),
           color: Color(incomeCat['colorValue'] as int),
         );
       }
     }
-    // Then, check default expense categories
     final match = filterItems.cast<FilterItem?>().firstWhere(
           (item) => item?.label == category,
           orElse: () => null,
@@ -560,7 +544,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (match != null) {
       return _CategoryVisual(icon: match.icon, color: match.color);
     }
-    // Check default income categories
     final incomeMatch = filterIncomeItems.cast<FilterItem?>().firstWhere(
           (item) => item?.label == category,
           orElse: () => null,
@@ -915,8 +898,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Helper widgets ─────────────────────────────────────────────────────────────
-
 class _OverviewStat extends StatelessWidget {
   const _OverviewStat({
     required this.label,
@@ -1115,7 +1096,6 @@ class _CurrencySelectorDialogState extends State<_CurrencySelectorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Build ordered list: selected first (preserving original order), then rest
     final orderedSymbols =
         widget.allCurrencies.map((c) => c['symbol']!).toList();
 

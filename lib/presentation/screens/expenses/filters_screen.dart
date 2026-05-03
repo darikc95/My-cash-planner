@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/datasources/hive_storage_service.dart';
-import '../../../data/datasources/local_auth_service.dart';
+import '../../../application/planner_facade.dart';
+import '../../../core/utils/icon_utils.dart';
 import '../../widgets/expense_ui_data.dart';
 import '../../widgets/expense_ui_widgets.dart';
 
@@ -23,8 +23,7 @@ class FiltersScreen extends StatefulWidget {
 }
 
 class _FiltersScreenState extends State<FiltersScreen> {
-  final _storageService = const HiveStorageService();
-  final _authService = const LocalAuthService(HiveStorageService());
+  final _planner = PlannerFacade.instance;
 
   late Set<String> _selectedCategories;
   DateTime? _startDate;
@@ -33,31 +32,24 @@ class _FiltersScreenState extends State<FiltersScreen> {
   List<_CombinedCategory> get _allCategories {
     final combined = <_CombinedCategory>[];
 
-    // Get user categories from Hive as a map
     final userCatsMap = <String, Map<String, dynamic>>{};
-    final userId = _authService.getCurrentUser()?.id;
+    final userId = _planner.getCurrentUser()?.id;
     if (userId != null) {
-      final userCats = _storageService.getUserCategories(userId);
+      final userCats = _planner.getUserCategories(userId);
       for (final cat in userCats) {
         userCatsMap[cat['name'] as String] = cat;
       }
     }
 
-    // Add categories: prefer user version, fall back to default
     for (final item in filterItems) {
       final userVersion = userCatsMap[item.label];
       if (userVersion != null) {
-        // Use user-customized version
         combined.add(_CombinedCategory(
           label: item.label,
-          icon: IconData(
-            userVersion['iconCodePoint'] as int,
-            fontFamily: 'MaterialIcons',
-          ),
+          icon: createMaterialIcon(userVersion['iconCodePoint'] as int),
           color: Color(userVersion['colorValue'] as int),
         ));
       } else {
-        // Use default
         combined.add(_CombinedCategory(
           label: item.label,
           icon: item.icon,
@@ -66,15 +58,11 @@ class _FiltersScreenState extends State<FiltersScreen> {
       }
     }
 
-    // Add remaining user-created categories (not in default list)
     for (final entry in userCatsMap.entries) {
       if (!filterItems.any((item) => item.label == entry.key)) {
         combined.add(_CombinedCategory(
           label: entry.key,
-          icon: IconData(
-            entry.value['iconCodePoint'] as int,
-            fontFamily: 'MaterialIcons',
-          ),
+          icon: createMaterialIcon(entry.value['iconCodePoint'] as int),
           color: Color(entry.value['colorValue'] as int),
         ));
       }

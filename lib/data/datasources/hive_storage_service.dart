@@ -14,8 +14,6 @@ class HiveStorageService {
   Box<dynamic> get _settingsBox => Hive.box<dynamic>(HiveBoxNames.settings);
   Box<dynamic> get _categoriesBox => Hive.box<dynamic>(HiveBoxNames.categories);
 
-  // ── Users ────────────────────────────────────────────────────────────────
-
   Future<void> saveUser(User user) {
     return _usersBox.put(user.id, user);
   }
@@ -35,8 +33,6 @@ class HiveStorageService {
   Future<void> clearUsers() {
     return _usersBox.clear();
   }
-
-  // ── Expenses ─────────────────────────────────────────────────────────────
 
   Future<void> saveExpense(Expense expense) {
     return _expensesBox.put(expense.id, expense);
@@ -68,8 +64,6 @@ class HiveStorageService {
     return _expensesBox.clear();
   }
 
-  // ── Categories per user ──────────────────────────────────────────────────
-
   String _categoryKey(String userId) => 'categories.$userId';
 
   /// Returns saved expense categories as list of maps with keys:
@@ -92,8 +86,6 @@ class HiveStorageService {
     await _categoriesBox.put(_categoryKey(userId), jsonEncode(categories));
   }
 
-  // ── Income categories per user ───────────────────────────────────────────
-
   String _incomeCategoryKey(String userId) => 'categories_income.$userId';
 
   List<Map<String, dynamic>> getUserIncomeCategories(String userId) {
@@ -114,8 +106,6 @@ class HiveStorageService {
     await _categoriesBox.put(
         _incomeCategoryKey(userId), jsonEncode(categories));
   }
-
-  // ── Budget limit per user (monthly) ──────────────────────────────────────
 
   String _legacyBudgetKey(String userId) => 'budget_limit.$userId';
 
@@ -185,8 +175,6 @@ class HiveStorageService {
     return _settingsBox.delete(_budgetMonthKey(userId, target));
   }
 
-  // ── Favourite currencies per user ────────────────────────────────────────
-
   String _currencyKey(String userId) => 'currencies.$userId';
 
   List<String> getUserCurrencies(String userId) {
@@ -204,8 +192,6 @@ class HiveStorageService {
     return _settingsBox.put(_currencyKey(userId), jsonEncode(symbols));
   }
 
-  // ── Avatar index per user ────────────────────────────────────────────────
-
   String _avatarKey(String userId) => 'avatar.$userId';
 
   int getUserAvatarIndex(String userId) {
@@ -215,8 +201,6 @@ class HiveStorageService {
   Future<void> saveUserAvatarIndex(String userId, int index) {
     return _settingsBox.put(_avatarKey(userId), index);
   }
-
-  // ── Theme mode per user ──────────────────────────────────────────────────
 
   String _themeModeKey([String? userId]) {
     if (userId == null || userId.isEmpty) return 'theme_mode';
@@ -245,8 +229,6 @@ class HiveStorageService {
     return _settingsBox.put(_themeModeKey(userId), normalized);
   }
 
-  // ── Budget alerts switch per user ────────────────────────────────────────
-
   String _budgetAlertsKey([String? userId]) {
     if (userId == null || userId.isEmpty) {
       return 'settings.notifications.budget';
@@ -270,8 +252,6 @@ class HiveStorageService {
   }) {
     return _settingsBox.put(_budgetAlertsKey(userId), enabled);
   }
-
-  // ── Push notifications switch per user ───────────────────────────────────
 
   String _pushNotificationsKey([String? userId]) {
     if (userId == null || userId.isEmpty) {
