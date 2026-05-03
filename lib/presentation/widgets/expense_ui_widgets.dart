@@ -3,16 +3,6 @@ import 'package:flutter/material.dart';
 
 import 'expense_ui_data.dart';
 
-void showFeatureStub(BuildContext context, String featureName) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text('$featureName можно подключить здесь.'),
-      ),
-    );
-}
-
 class WalletIllustration extends StatelessWidget {
   const WalletIllustration({super.key});
 

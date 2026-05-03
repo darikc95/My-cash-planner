@@ -119,31 +119,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
   }
 
-  Future<void> _handleGoogleLogin() async {
-    FocusScope.of(context).unfocus();
-
-    const authService = LocalAuthService(HiveStorageService());
-    final result = await authService.loginWithDemoAccount();
-
-    if (!mounted) {
-      return;
-    }
-
-    if (!result.success) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(result.message ?? 'Не удалось выполнить demo-вход.'),
-          ),
-        );
-      return;
-    }
-
-    context.read<AuthBloc>().add(const AuthSessionRequested());
-    context.go(ExpenseUiRoutes.home);
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
