@@ -122,3 +122,13 @@ flutter build apk --release --no-tree-shake-icons
 > Флаг `--no-tree-shake-icons` необходим, так как иконки категорий хранятся динамически в Hive и загружаются во время выполнения — стандартная оптимизация Flutter не может определить, какие иконки используются.
 
 Готовый APK: `build/app/outputs/flutter-apk/app-release.apk`
+
+---
+
+## Скриншоты
+<img width="563" height="1155" alt="image" src="https://github.com/user-attachments/assets/e3347fc6-df81-4347-b54b-3341d9f48b5a" />
+<img width="563" height="1155" alt="image" src="https://github.com/user-attachments/assets/7d1b1890-b7b1-4e78-901c-f6c6deccb625" />
+<img width="819" height="1055" alt="image" src="https://github.com/user-attachments/assets/a1c6903a-f6aa-46f6-81b0-dd5378efc9bb" />
+<img width="562" height="1155" alt="image" src="https://github.com/user-attachments/assets/21abe22a-2139-4c27-94f7-5060f2d49abe" />
+<img width="563" height="1155" alt="image" src="https://github.com/user-attachments/assets/2ccb7c1b-af87-47a4-b597-eed0fdba479e" />
+
